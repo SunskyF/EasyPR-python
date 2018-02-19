@@ -1,0 +1,8 @@
+VIS: True
+DEBUG: True
+
+DETECTOR:
+  METHOD: 1
+
+RECOGNIZER:
+  METHOD: 0
