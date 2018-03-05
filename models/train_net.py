@@ -15,9 +15,16 @@ from easypr.cnn_train import Train
 from mrcnn.plate import PlateConfig, PlateDataset
 import mrcnn.model as modellib
 
+# multi-label train
+from multilabel.train import MultiLabelSolver
+
 import argparse
-import sys
 import os
+import sys
+
+sys.path.append('../lib')
+from config import cfg, cfg_from_file
+
 
 def parse_args():
     """
@@ -28,18 +35,23 @@ def parse_args():
                         help='data dir', default=None, type=str)
     parser.add_argument('--output_dir', dest='output_dir', required=True,
                         help='output dir', default=None, type=str)
-    parser.add_argument('--batch_size', dest='batch_size',  required=False,
+    parser.add_argument('--batch_size', dest='batch_size', required=False,
                         help='batch size', default=32, type=int)
     parser.add_argument('--lr', dest='lr', required=False,
                         help='learning rate', default=0.01, type=float)
     parser.add_argument('--epoch', dest='epoch', required=False,
                         help='epoch', default=10, type=int)
-    parser.add_argument('--net', dest='net',  required=True,
-                        help='the net to be trained, (char, judge, mrcnn)', default=None, type=str)
+    parser.add_argument('--task', dest='task', required=True,
+                        help='the task to be trained, (char, judge, mrcnn, multilabel)', default=None, type=str)
+    parser.add_argument('--net', dest='net', required=False,
+                        help='the net to be trained, only in task (multilabel: vgg16)',
+                        default=None, type=str)
     parser.add_argument('--gpu', dest='gpu', required=False,
                         help='which gpu to use', default='0', type=str)
     parser.add_argument('--weights', dest='pretrained_model', required=False,
                         help='use pretrained model', default=None, type=str)
+    parser.add_argument('--cfg', dest='cfg', required=False,
+                        help='the config file', default=None, type=str)
 
     if len(sys.argv) == 1:
         parser.print_help()
@@ -53,7 +65,10 @@ if __name__ == '__main__':
     args = parse_args()
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 
-    if args.net in ['char', 'judge']:
+    if args.cfg:
+        cfg_from_file(args.cfg)
+
+    if args.task in ['char', 'judge']:
         dataset_params = {
             'batch_size': args.batch_size,
             'path': args.data_dir,
@@ -81,7 +96,7 @@ if __name__ == '__main__':
         train = Train(params)
         train.compile(model)
         train.train(dataset_train, dataset_val)
-    elif args.net in ['mrcnn']:
+    elif args.task in ['mrcnn']:
         config = PlateConfig()
         config.display()
 
@@ -128,7 +143,9 @@ if __name__ == '__main__':
                     learning_rate=config.LEARNING_RATE / 100,
                     epochs=30,
                     layers='all')
+    elif args.task in ['multilabel']:
+        assert args.net is not None, "Please specify the backbone net"
+        solver = MultiLabelSolver(args.net, cfg)
+        solver.train()
     else:
-        print('The net is not supported.')
-        raise NotImplementedError
-
+        raise NotImplementedError('The task is not supported.')

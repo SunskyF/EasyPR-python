@@ -40,11 +40,15 @@ __C.RECOGNIZER = edict()
 
 # The method to recognize the plate
 # 0: EasyPR method
+# 1: Multi-label
 __C.RECOGNIZER.METHOD = 0
 
 # Recognizer Train Options
 __C.RECOGNIZER.TRAIN = edict()
 
+# Multi-label
+__C.RECOGNIZER.TRAIN.MULTILABEL = edict()
+__C.RECOGNIZER.TRAIN.MULTILABEL.WEIGHT_DECAY = 0.0001
 # Recognizer Test Options
 __C.RECOGNIZER.TEST = edict()
 

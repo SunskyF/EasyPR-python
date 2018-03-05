@@ -36,19 +36,18 @@ easypr的训练数据和各个模型的训练模型请从[百度云](https://pan
 └─使用说明.txt  
 output文件夹下目录结构是  
 ├─chars_20180210T1038   
-
-├─mrcnn\_20180212T2143
-
+├─mrcnn\_20180212T2143  
 └─whether_car_20180210T1049  
 
 ## TODO
 [] 写博客  
 [] multi-label的车牌识别  
 [] 更好的根据mask获得车牌精确4个点的算法  
+[] 整合训练时代码    
 [] 轻量化  
 
 ## Done
-[x] 重构代码  
+[x] 重构  
 [x] mask-rcnn  
 
 ## Train
@@ -59,20 +58,20 @@ output文件夹下目录结构是
 demo
 ```bash
 # 用easypr的方法
-python demo.py --cfg cfgs/easypr.yml --path data/demo/test.jpg
+python demo.py --cfg cfgs/test/easypr.yml --path data/demo/test.jpg
 ```
 
 功能测试
 ```bash
-python func_test.py --cfg cfgs/easypr.yml
+python func_test.py --cfg cfgs/test/easypr.yml
 ```
 
 批量测试（data目录下需要有general_test目录）
 ```bash
-python accuracy_test.py --cfg cfgs/easypr.yml
+python accuracy_test.py --cfg cfgs/test/easypr.yml
 ```
 
-## Question
+## Tips
 1. 训练mrcnn因为使用自己的数据，请注意一下数据格式    
 
 ## Reference
