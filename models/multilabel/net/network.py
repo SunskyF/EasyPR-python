@@ -10,6 +10,8 @@ import tensorflow.contrib.slim as slim
 from tensorflow.contrib.slim import losses
 from tensorflow.contrib.slim import arg_scope
 
+from .utils import draw
+
 
 class MultiLabel:
     def __init__(self, cfg):
@@ -17,8 +19,12 @@ class MultiLabel:
         self._predictions = {}
         self._losses = {}
         self._layers = {}
+
         # summary
+        self._gt_image = None
         self._score_summaries = {}
+        self._train_summaries = []
+        self._event_summaries = {}
 
     def complie(self, mode, num_classes):
         self._image = tf.placeholder(tf.float32,
@@ -48,12 +54,16 @@ class MultiLabel:
 
             # add summary
             with tf.device("/cpu:0"):
+                val_summaries.append(self._add_gt_image_summary())
+                for key, var in self._event_summaries.items():
+                    val_summaries.append(tf.summary.scalar(key, var))
                 for key, var in self._score_summaries.items():
                     self._add_score_summary(key, var)
+                for var in self._train_summaries:
+                    self._add_train_summary(var)
 
             self._summary_op = tf.summary.merge_all()
-            # self._summary_op_val = tf.summary.merge(val_summaries)
-
+            self._summary_op_val = tf.summary.merge(val_summaries)
         return self._predictions
 
     def _add_loss(self):
@@ -62,7 +72,7 @@ class MultiLabel:
             label = self._label
             for i in range(self._label.shape[1]):
                 self._losses['loss_label' + str(i)] = tf.reduce_mean(
-                        tf.nn.sparse_softmax_cross_entropy_with_logits(logits=cls_scores[i], labels=label[:, i]))
+                    tf.nn.sparse_softmax_cross_entropy_with_logits(logits=cls_scores[i], labels=label[:, i]))
                 tf.add_to_collection('losses', self._losses['loss_label' + str(i)])
             loss = tf.add_n(tf.get_collection('losses'))
             regularization_loss = tf.add_n(tf.losses.get_regularization_losses(), 'regu')
@@ -116,6 +126,35 @@ class MultiLabel:
             feed_dict=feed_dict)
         return loss_0, loss_1, loss_2, loss_3, loss_4, loss_5, loss_6, loss
 
+    def train_step_with_summary(self, sess, blob, train_op):
+        feed_dict = {self._image: blob['image'], self._label: blob['label']}
+        loss_0, loss_1, loss_2, loss_3, loss_4, loss_5, loss_6, loss, summary, _ = sess.run([
+            self._losses['loss_label0'],
+            self._losses['loss_label1'],
+            self._losses['loss_label2'],
+            self._losses['loss_label3'],
+            self._losses['loss_label4'],
+            self._losses['loss_label5'],
+            self._losses['loss_label6'],
+            self._losses['total_loss'],
+            self._summary_op,
+            train_op],
+            feed_dict=feed_dict)
+        return loss_0, loss_1, loss_2, loss_3, loss_4, loss_5, loss_6, loss, summary
+
+    def get_summary(self, sess, blob):
+        feed_dict = {self._image: blob['image'],
+                     self._label: blob['label']}
+        summary = sess.run(self._summary_op_val, feed_dict=feed_dict)
+
+        return summary
+
+    def test_image(self, sess, image):
+        feed_dict = {self._image: image}
+        key_pred = sess.run([self._predictions["keypoint_pred"]], feed_dict=feed_dict)
+
+        return key_pred
+
     def get_variables_to_restore(self, variables, var_keep_dic):
         raise NotImplementedError
 
@@ -125,3 +164,22 @@ class MultiLabel:
     # summary
     def _add_score_summary(self, key, tensor):
         tf.summary.histogram('SCORE/' + tensor.op.name + '/' + str(key) + '/scores', tensor)
+
+    def _add_train_summary(self, var):
+        tf.summary.histogram('TRAIN/' + var.op.name, var)
+
+    def _add_gt_image(self):
+        # add back mean
+        image = self._image + self.cfg.PIXEL_MEAN
+        # BGR to RGB (opencv uses BGR)
+        self._gt_image = tf.image.resize_bilinear(image, [self.cfg.TEST.IMAGE_HEIGHT, self.cfg.TEST.IMAGE_WIDTH])
+
+    def _add_gt_image_summary(self):
+        # use a customized visualization function to visualize the boxes
+        if self._gt_image is None:
+            self._add_gt_image()
+        image = tf.py_func(draw,
+                           [self._gt_image, self._label],
+                           tf.float32, name="gt_keypoints")
+
+        return tf.summary.image('GROUND_TRUTH', image)

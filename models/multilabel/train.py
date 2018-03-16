@@ -46,18 +46,25 @@ class MultiLabelSolver:
         total_iter = 0
         for i in range(epoch):
             max_iters = len(self.train_dataset.image_ids) // self.cfg.SOLVER.BATCH_SIZE
-            for iter in range(len(self.train_dataset.image_ids) // self.cfg.SOLVER.BATCH_SIZE):
+            for iter in range(max_iters):
                 train_images, train_labels = next(train_dataset_generator)
+                val_images, val_labels = next(val_dataset_generator)
                 blob = {'image': train_images, 'label': train_labels}
-                total_loss = self.net.train_step(self.sess, blob, train_op)
+
+                if iter % self.cfg.TRAIN.SUMMARY_INTERVAL == 0:
+                    loss_0, loss_1, loss_2, loss_3, loss_4, loss_5, loss_6, loss, summary = \
+                        self.net.train_step_with_summary(self.sess, blob, train_op)
+                    blob_val = {'image': val_images, 'label': val_labels}
+                    summary_val = self.net.get_summary(self.sess, blob_val)
+                    self.writer.add_summary(summary, float(total_iter))
+                    self.val_writer.add_summary(summary_val, float(total_iter))
+                else:
+                    loss_0, loss_1, loss_2, loss_3, loss_4, loss_5, loss_6, loss = \
+                        self.net.train_step(self.sess, blob, train_op)
 
                 if iter % self.cfg.TRAIN.DISPLAY == 0:
                     print(
-                        'iter: {} / {} epoch: {} / {}, total loss: {}\n'.format(iter, max_iters, i, epoch, total_loss))
-                if iter % self.cfg.TRAIN.SUMMARY_INTERVAL == 0:
-                    # TODO: add summary
-                    pass
-
+                        'iter: {} / {} epoch: {} / {}, total loss: {}\n'.format(iter, max_iters, i, epoch, loss))
                 total_iter += 1
             filename = os.path.join(self.model_dir, self.cfg.NAME + '_iter_{:d}'.format(total_iter) + '.ckpt')
             self.saver.save(self.sess, filename)

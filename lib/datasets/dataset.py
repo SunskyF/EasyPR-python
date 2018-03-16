@@ -94,7 +94,10 @@ class Dataset:
             images = []
             labels = []
             for i in self._image_ids:
-                image, label = self.load_gt(i)
+                try:
+                    image, label = self.load_gt(i)
+                except:
+                    continue
                 images.append(image)
                 labels.append(label)
                 if len(images) == batch_size:
