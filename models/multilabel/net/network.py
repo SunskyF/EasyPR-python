@@ -6,6 +6,9 @@
     The basic network class, now used in multilabel training only
 """
 import tensorflow as tf
+import tensorflow.contrib.slim as slim
+from tensorflow.contrib.slim import losses
+from tensorflow.contrib.slim import arg_scope
 
 
 class MultiLabel:
@@ -13,61 +16,112 @@ class MultiLabel:
         self.cfg = cfg
         self._predictions = {}
         self._losses = {}
-        self._anchor_targets = {}
-        self._proposal_targets = {}
         self._layers = {}
-        self._gt_image = None
-        self._act_summaries = []
+        # summary
         self._score_summaries = {}
-        self._train_summaries = []
-        self._event_summaries = {}
-        self._variables_to_fix = {}
-
-    def _add_act_summary(self, tensor):
-        tf.summary.histogram('ACT/' + tensor.op.name + '/activations', tensor)
-        tf.summary.scalar('ACT/' + tensor.op.name + '/zero_fraction',
-                          tf.nn.zero_fraction(tensor))
-
-    def _add_score_summary(self, key, tensor):
-        tf.summary.histogram('SCORE/' + tensor.op.name + '/' + key + '/scores', tensor)
-
-    def _add_train_summary(self, var):
-        tf.summary.histogram('TRAIN/' + var.op.name, var)
 
     def complie(self, mode, num_classes):
-        self._image = tf.placeholder(tf.float32, shape=[1, None, None, 3])
+        self._image = tf.placeholder(tf.float32,
+                                     shape=[None, self.cfg.TRAIN.IMAGE_HEIGHT, self.cfg.TRAIN.IMAGE_WIDTH, 3])
+        self._label = tf.placeholder(tf.int32, shape=[None, 7])
 
         self._mode = mode
-        self._num_classew = num_classes
+        self._num_classes = num_classes
 
         weights_regularizer = tf.contrib.layers.l2_regularizer(self.cfg.TRAIN.WEIGHT_DECAY)
         biases_regularizer = tf.no_regularizer
 
-    def _backbone(self, is_training, reuse=None):
-        raise NotImplementedError
+        with arg_scope([slim.conv2d, slim.conv2d_in_plane, slim.conv2d_transpose,
+                        slim.separable_conv2d, slim.fully_connected],
+                       weights_regularizer=weights_regularizer,
+                       biases_regularizer=biases_regularizer,
+                       biases_initializer=tf.constant_initializer(0.0)):
+            self._build_network()
 
-    def get_summary(self, sess, blobs):
-        feed_dict = {self._image: blobs['data']}
-        summary = sess.run(self._summary_op_val, feed_dict=feed_dict)
+        if self._mode == 'test':
+            pass
+        else:
+            self._add_loss()
+            self._predictions.update(self._losses)
 
-        return summary
+            val_summaries = []
 
-    def train_step(self, sess, blobs, train_op):
-        feed_dict = {self._image: blobs['data']}
-        loss, _ = sess.run([self._losses['cross_entropy'],
-                            train_op],
-                           feed_dict=feed_dict)
+            # add summary
+            with tf.device("/cpu:0"):
+                for key, var in self._score_summaries.items():
+                    self._add_score_summary(key, var)
+
+            self._summary_op = tf.summary.merge_all()
+            # self._summary_op_val = tf.summary.merge(val_summaries)
+
+        return self._predictions
+
+    def _add_loss(self):
+        with tf.variable_scope('LOSS_') as scope:
+            cls_scores = self._predictions["cls_score"]
+            label = self._label
+            for i in range(self._label.shape[1]):
+                self._losses['loss_label' + str(i)] = tf.reduce_mean(
+                        tf.nn.sparse_softmax_cross_entropy_with_logits(logits=cls_scores[i], labels=label[:, i]))
+                tf.add_to_collection('losses', self._losses['loss_label' + str(i)])
+            loss = tf.add_n(tf.get_collection('losses'))
+            regularization_loss = tf.add_n(tf.losses.get_regularization_losses(), 'regu')
+            self._losses['total_loss'] = loss + regularization_loss
         return loss
 
-    def train_step_with_summary(self, sess, blobs, train_op):
-        feed_dict = {self._image: blobs['data']}
-        loss, summary, _ = sess.run([self._losses['cross_entropy'],
-                                     self._summary_op,
-                                     train_op],
-                                    feed_dict=feed_dict)
-        return loss, summary
+    def _build_network(self):
+        net_head = self._backbone()
+        fc7 = self._tail(net_head)
+        with tf.variable_scope(self._scope, self._scope):
+            self._multilabel_classification(fc7)
+        self._score_summaries.update(self._predictions['cls_score'])
 
-    def train_step_no_return(self, sess, blobs, train_op):
-        feed_dict = {self._image: blobs['data'], self._im_info: blobs['im_info'],
-                     self._gt_boxes: blobs['gt_boxes']}
-        sess.run([train_op], feed_dict=feed_dict)
+    def _backbone(self, reuse=None):
+        raise NotImplementedError
+
+    def _tail(self, net_head, reuse=None):
+        raise NotImplementedError
+
+    def _multilabel_classification(self, net):
+        initializer = tf.truncated_normal_initializer(mean=0.0, stddev=0.01)
+
+        cls_scores = []
+        cls_probs = []
+        cls_preds = []
+        for i in range(self._label.shape[1]):
+            cls_score = slim.fully_connected(net, self._num_classes,
+                                             weights_initializer=initializer, scope='cls_score' + str(i))
+            cls_prob = slim.softmax(cls_score, scope="cls_prob" + str(i))
+            cls_pred = tf.argmax(cls_score, axis=1, name="cls_pred" + str(i))
+            cls_scores.append(cls_score)
+            cls_probs.append(cls_prob)
+            cls_preds.append(cls_pred)
+
+        self._predictions['cls_score'] = dict(zip(range(len(cls_scores)), cls_scores))
+        self._predictions['cls_prob'] = cls_probs
+        self._predictions['cls_pred'] = cls_preds
+
+    def train_step(self, sess, blob, train_op):
+        feed_dict = {self._image: blob['image'], self._label: blob['label']}
+        loss_0, loss_1, loss_2, loss_3, loss_4, loss_5, loss_6, loss, _ = sess.run([
+            self._losses['loss_label0'],
+            self._losses['loss_label1'],
+            self._losses['loss_label2'],
+            self._losses['loss_label3'],
+            self._losses['loss_label4'],
+            self._losses['loss_label5'],
+            self._losses['loss_label6'],
+            self._losses['total_loss'],
+            train_op],
+            feed_dict=feed_dict)
+        return loss_0, loss_1, loss_2, loss_3, loss_4, loss_5, loss_6, loss
+
+    def get_variables_to_restore(self, variables, var_keep_dic):
+        raise NotImplementedError
+
+    def fix_variables(self, sess, pretrained_model):
+        raise NotImplementedError
+
+    # summary
+    def _add_score_summary(self, key, tensor):
+        tf.summary.histogram('SCORE/' + tensor.op.name + '/' + str(key) + '/scores', tensor)

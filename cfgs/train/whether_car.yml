@@ -1,0 +1,6 @@
+NAME: whether_car
+
+SOLVER:
+  EPOCH: 10
+  BATCH_SIZE: 32
+  LEARNING_RATE: 0.01

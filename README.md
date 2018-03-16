@@ -40,11 +40,12 @@ output文件夹下目录结构是
 └─whether_car_20180210T1049  
 
 ## TODO
-[] 写博客  
 [] multi-label的车牌识别  
+[] 写博客  
 [] 更好的根据mask获得车牌精确4个点的算法  
 [] 整合训练时代码    
 [] 轻量化  
+[] end2end
 
 ## Done
 [x] 重构  

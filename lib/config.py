@@ -17,6 +17,7 @@ __C = edict()
 #   from lib.config import cfg
 cfg = __C
 
+__C.NAME = ""
 #
 # Detector
 #
@@ -53,6 +54,54 @@ __C.RECOGNIZER.TRAIN.MULTILABEL.WEIGHT_DECAY = 0.0001
 __C.RECOGNIZER.TEST = edict()
 
 #
+# Solver
+#
+__C.SOLVER = edict()
+
+# Train epoch
+__C.SOLVER.EPOCH = 10
+
+# Batch size
+__C.SOLVER.BATCH_SIZE = 32
+
+# Learning rate
+__C.SOLVER.LEARNING_RATE = 0.01
+
+#
+# Train
+#
+# Train input parameters
+__C.TRAIN = edict()
+
+# Image width dimension
+__C.TRAIN.IMAGE_WIDTH = 512
+
+# Image height dimension
+__C.TRAIN.IMAGE_HEIGHT = 512
+
+# Display per iter
+__C.TRAIN.DISPLAY = 20
+
+# Summary per iter
+__C.TRAIN.SUMMARY_INTERVAL = 200
+
+# Flip image to augmentation
+__C.TRAIN.FLIP = False
+
+# Weight decay, for regularization
+__C.TRAIN.WEIGHT_DECAY = 0.0001
+
+#
+# Test
+#
+# Test input parameters
+__C.TEST = edict()
+# Image width dimension
+__C.TEST.IMAGE_WIDTH = 512
+# Image height dimension
+__C.TEST.IMAGE_HEIGHT = 512
+
+#
 # MISC
 #
 # Root directory of project
@@ -84,7 +133,10 @@ __C.CLASSES = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
                '桂', '黑', '沪', '冀', '津', '京', '吉', '辽',
                '鲁', '蒙', '闽', '宁', '青', '琼', '陕', '苏',
                '晋', '皖', '湘', '新', '豫', '渝', '粤', '云',
-               '藏', '浙')  #
+               '藏', '浙')  # 65 classes
+
+# Image mean (RGB)
+__C.PIXEL_MEAN = np.array([[[122.7717, 115.9465, 102.9801]]])
 
 
 def _merge_a_into_b(a, b):
@@ -127,3 +179,4 @@ def cfg_from_file(filename):
         yaml_cfg = edict(yaml.load(f))
 
     _merge_a_into_b(yaml_cfg, __C)
+    assert __C.NAME != "", "Please add a name"

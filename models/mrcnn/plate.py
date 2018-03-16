@@ -42,7 +42,7 @@ class PlateInferenceConfig(PlateConfig):
 ############################################################
 
 class PlateDataset(utils.Dataset):
-    def load_plate(self, dataset_dir, subset):
+    def load_plate(self, dataset_dir):
         """Load small plate dataset.
         dataset_dir: The root directory of the small plate dataset.
         subset: What to load (train, val)
@@ -54,7 +54,7 @@ class PlateDataset(utils.Dataset):
 
         # Create plate object
         imageset_file = os.path.join(dataset_dir, subset + '.txt')
-        with open(imageset_file, 'r', encoding='gbk') as f:
+        with open(imageset_file, 'r', encoding=' gbk') as f:
             image_index = [x.strip().split('.')[0] for x in f.readlines()]
         # Add classes
         self.add_class("plates", 1, "plate")

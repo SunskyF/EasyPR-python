@@ -5,24 +5,13 @@
 """
     Train entry
 """
-# easypr train
-from easypr.dataset import DataSet
-from easypr.net.lenet import Lenet
-from easypr.net.judgenet import Judgenet
-from easypr.cnn_train import Train
-
-# mask-rcnn train
-from mrcnn.plate import PlateConfig, PlateDataset
-import mrcnn.model as modellib
-
-# multi-label train
-from multilabel.train import MultiLabelSolver
+import _init_paths
+from datasets.factory import get_dataset
 
 import argparse
 import os
 import sys
 
-sys.path.append('../lib')
 from config import cfg, cfg_from_file
 
 
@@ -33,14 +22,6 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Func test ULPR')
     parser.add_argument('--data_dir', dest='data_dir', required=True,
                         help='data dir', default=None, type=str)
-    parser.add_argument('--output_dir', dest='output_dir', required=True,
-                        help='output dir', default=None, type=str)
-    parser.add_argument('--batch_size', dest='batch_size', required=False,
-                        help='batch size', default=32, type=int)
-    parser.add_argument('--lr', dest='lr', required=False,
-                        help='learning rate', default=0.01, type=float)
-    parser.add_argument('--epoch', dest='epoch', required=False,
-                        help='epoch', default=10, type=int)
     parser.add_argument('--task', dest='task', required=True,
                         help='the task to be trained, (char, judge, mrcnn, multilabel)', default=None, type=str)
     parser.add_argument('--net', dest='net', required=False,
@@ -69,27 +50,34 @@ if __name__ == '__main__':
         cfg_from_file(args.cfg)
 
     if args.task in ['char', 'judge']:
+        # easypr train
+        from easypr.dataset import DataSet
+        from easypr.net.lenet import Lenet
+        from easypr.net.judgenet import Judgenet
+        from easypr.cnn_train import Train
+
         dataset_params = {
-            'batch_size': args.batch_size,
+            'batch_size': cfg.SOLVER.BATCH_SIZE,
             'path': args.data_dir,
             'thread_num': 3
         }
-
-        if args.net == 'char':
+        if args.task == 'char':
             model = Lenet()
             dataset_params['gray'] = True
-        elif args.net == 'judge':
+            model_prefix = "chars"
+        elif args.task == 'judge':
             model = Judgenet()
+            model_prefix = "whether_car"
 
         dataset_train = DataSet(dataset_params, 'train')
         dataset_params['batch_size'] = 100
         dataset_val = DataSet(dataset_params, 'val')
 
         params = {
-            'lr': args.lr,
-            'number_epoch': args.epoch,
+            'lr': cfg.SOLVER.LEARNING_RATE,
+            'number_epoch': cfg.SOLVER.EPOCH,
             'epoch_length': dataset_train.record_number,
-            'log_dir': args.output_dir
+            'log_dir': cfg.OUTPUT_DIR / model_prefix
         }
 
         model.compile()
@@ -97,6 +85,10 @@ if __name__ == '__main__':
         train.compile(model)
         train.train(dataset_train, dataset_val)
     elif args.task in ['mrcnn']:
+        # mask-rcnn train
+        from mrcnn.plate import PlateConfig, PlateDataset
+        import mrcnn.model as modellib
+
         config = PlateConfig()
         config.display()
 
@@ -144,8 +136,21 @@ if __name__ == '__main__':
                     epochs=30,
                     layers='all')
     elif args.task in ['multilabel']:
+        # multi-label train
+        from multilabel.train import MultiLabelSolver
+
         assert args.net is not None, "Please specify the backbone net"
-        solver = MultiLabelSolver(args.net, cfg)
+        # Training dataset
+        print('Reading data...')
+        dataset_train = get_dataset('plate_char', 'train', cfg)
+        dataset_train.load_data(args.data_dir)
+
+        # Validation dataset
+        dataset_val = get_dataset('plate_char', 'val', cfg)
+        dataset_val.load_data(args.data_dir)
+
+        # Train model
+        solver = MultiLabelSolver(args.net, cfg, dataset_train, dataset_val, pretrained_model=args.pretrained_model)
         solver.train()
     else:
         raise NotImplementedError('The task is not supported.')

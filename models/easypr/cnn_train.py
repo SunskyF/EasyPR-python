@@ -60,7 +60,7 @@ class Train(object):
         model_dir = self.log_dir / 'models'
 
         saver = tf.train.Saver(max_to_keep=3)
-        tf.train.write_graph(self.sess.graph_def, model_dir, 'model.pb', False)
+        tf.train.write_graph(self.sess.graph_def, str(model_dir), 'model.pb', False)
         self.sess.run(tf.global_variables_initializer())
 
         for step in range(int(self.epoch_length * self.number_epoch)):
