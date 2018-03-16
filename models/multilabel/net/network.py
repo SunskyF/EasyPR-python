@@ -44,9 +44,10 @@ class MultiLabel:
                        biases_initializer=tf.constant_initializer(0.0)):
             self._build_network()
 
-        if self._mode == 'test':
-            pass
-        else:
+        for var in tf.trainable_variables():
+            self._train_summaries.append(var)
+
+        if self._mode == 'train':
             self._add_loss()
             self._predictions.update(self._losses)
 
@@ -77,6 +78,8 @@ class MultiLabel:
             loss = tf.add_n(tf.get_collection('losses'))
             regularization_loss = tf.add_n(tf.losses.get_regularization_losses(), 'regu')
             self._losses['total_loss'] = loss + regularization_loss
+
+            self._event_summaries.update(self._losses)
         return loss
 
     def _build_network(self):
